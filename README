@@ -1,11 +1,2 @@
-This project groups compatible versions of the individual vipg projects. It
-uses git submodule to reference working versions from the other vipg projects.
-For a list of all (included) vipg projects see the output of 'git submodule
-status'. There are currently three branches: master, next and devel. In the
-master branch resides the current release, in the next branch the upcoming
-release (should be pretty stable) and in the devel branch is a development
-snapshot. The programs of all three branches are supposed to compile cleanly and
-be usable.
+This project groups compatible versions of the individual vipg projects
 
-For actual development versions you must directly pull the devel branches of
-all repositories and build them manually.
