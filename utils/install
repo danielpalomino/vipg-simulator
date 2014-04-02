@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+################################################################################
+# This installer script checks out each of the VIPG Git projects, builds them
+# and displays the necessary changes to your PATH environment variable to
+# access the installed executables.
+#
+# The installer can also be used to update an existing installation. Just
+# re-run it from the same directory/with the same arguments.
+#
+# For more information see the -h help output.
+#
+# Author: Sascha Friedmann                                     Feb 2012
+################################################################################
+
+# A list of all the VIPG Git projects that the installer script should
+# install/update.
+# Projects are built in the order they're listed in this array. The Gem5
+# project must be built last, because it needs some of the other projects
+# (hotspot and mcpat).
+__VIPG_PROJECTS=(hotspot m5-mcpat-parser mcpat vipg-simulator gem5)
+VIPG_PROJECTS=("${__VIPG_PROJECTS[@]}")
+
+# The destination directory/prefix to install the Git projects and auxiliary
+# files and directories in. It defaults to the current working directory.
+prefix=.
+
+# The Git server/location where the VIPG projects are hosted.
+git_server='git@i80pdc.irf.uni-karlsruhe.de:'
+
+# The number of parallel build jobs to use, e.g., make -j N or scons -j N.
+build_jobs=1
+
+usage="install [-h] [-g LOC] [-j N ] [-p PROJS] [PREFIX]
+
+Install the VIPG Git projects into PREFIX or the current working directory if
+PREFIX is omitted. If the projects are already installed, the script will
+update them.
+
+	-g LOC    Location of the VIPG Git repositories. It defaults to
+	          '$git_server', which is the CES's
+	          Gitolite server for the VIPG projects. You can also supply
+	          a Unix path, or anything that 'git fetch' accepts as its
+	          'repository argument'.
+
+                  To allow the installer to distinguish between a hostname and
+                  a path, you must append a slash (/), if you're specyfing a
+                  path and a colon (:), if you're specyfing a hostname/URL.
+
+        -j N      Use up to N parallel instances/jobs for building the
+	          projects, e.g., scons -j N or make -j N. The default is $build_jobs.
+
+	-p PROJS  A list of Git repositories that the installer should
+	          install/update. It defaults to all projects, which are:
+                  '${VIPG_PROJECTS[@]}'
+
+        -P PROJS  Install all the default projects except for those listed to
+                  the -P command line switch. The -p and -P flag are mutually
+	          exclusive.
+
+	-h        Shows this help screen."
+
+# Maps each project by name to a builder. A builder is a shell function that,
+# when invoked in the project's directory, builds the project.
+declare -A PROJ_BUILDER
+PROJ_BUILDER["gem5"]=build_gem5
+PROJ_BUILDER["hotspot"]=make
+PROJ_BUILDER["m5-mcpat-parser"]=:
+PROJ_BUILDER["mcpat"]=build_autotools_project
+PROJ_BUILDER["vipg-simulator"]=:
+
+# Maps each project by name to a path relative to $prefix, that should be
+# expanded and added to the PATH environment variable.
+declare -A PROJ_PATH
+PROJ_PATH["gem5"]=gem5/build/ALPHA_FS
+PROJ_PATH["hotspot"]=hotspot
+PROJ_PATH["m5-mcpat-parser"]=m5-mcpat-parser
+PROJ_PATH["mcpat"]=mcpat
+PROJ_PATH["vipg-simulator"]=
+
+# Print all given arguments to stderr, then exit with status 1.
+die()
+{
+    printf "%s\n" "$@" >&2
+    exit 1
+}
+
+# Warn the user that a (non-)fatal error occurred.
+error()
+{
+    printf "%s\n" "$@" >&2
+}
+
+# Parses the argument of the -p command line switch and sets VIPG_PROJECTS to
+# the list of projects that should be installed/updated.
+parse_project_list()
+{
+    # We iterate over the project list of the -p switch and check for each
+    # argument if it's a valid project name and add it to VIPG_PROJECTS array.
+
+    read -a projs <<< "$1"
+
+    VIPG_PROJECTS=()
+
+    for vipg_proj in "${__VIPG_PROJECTS[@]}"; do
+        local include=
+        for proj in "${projs[@]}"; do
+            [[ "$proj" == "$vipg_proj" ]] && include=1
+        done
+
+        if (($include)); then
+            VIPG_PROJECTS+=("$vipg_proj")
+        fi
+    done
+}
+
+# Parses the argument of the -P command line switch and sets VIPG_PROJECTS to
+# all projects in __VIPG_PROJECTS except for those listed in the argument.
+parse_proj_ignore_list()
+{
+    read -a ignore_list <<< "$1"
+
+    VIPG_PROJECTS=()
+
+    for proj in "${__VIPG_PROJECTS[@]}"; do
+        local include=1
+        for ignored in "${ignore_list[@]}"; do
+            [[ "$proj" == "$ignored" ]] && include=
+        done
+
+        if (($include)); then
+            VIPG_PROJECTS+=("$proj")
+        fi
+    done
+}
+
+# Show some information.
+display_summary()
+{
+    echo -e "\n---------- Summary ----------"
+
+    echo "Installing in $prefix"
+    echo "Using Git server $git_server "
+    printf "Installing projects "; printf "'%s' " "${VIPG_PROJECTS[@]}" ; printf "\n"
+
+    echo -e "-----------------------------\n"
+}
+
+# Check if a Git repository for the current project already exists, if not
+# create it.
+setup_project()
+{
+    local proj="${prefix}/$1"
+
+    # Test if $proj points to a normal repo or a    bare repo.
+    if ! { [[ -d "$proj" ]] && [[ -d "$proj/.git" ]] || [[ -d "$proj/HEAD" ]] ; }; then
+        echo "	Creating $1"
+        {
+            # Create a Git repo
+            git init "$proj"
+            # Add remote
+            (cd "$proj"; git remote add ces "${git_server}$1"; git remote update ces; git branch -t master ces/master; git checkout master)
+        } 1>&5 2>&5
+    fi
+}
+
+# Pull the newest version of the current project.
+pull_project()
+{
+    local proj="${git_server}$1"
+    local proj_dir="${prefix}/$1"
+
+    echo "	Pulling $1"
+
+    (cd "$proj_dir" && git stash save 'Auto-save by installer script.' && git pull ces && { git stash pop || true ; }) 1>&5 2>&5
+}
+
+# Build the project.
+build_project()
+{
+    local proj="${prefix}/$1"
+
+    echo "	Building $1"
+    (set -e; cd "$proj"; ${PROJ_BUILDER["$1"]}) 1>&5 2>&5
+}
+
+# Build a project that uses the autotools toolchain, i.e., automake and
+# autoconf.
+build_autotools_project()
+{
+    autoreconf -i && ./configure && make "-j$build_jobs"
+}
+
+# Build the Gem5 project for the Alpha architecture.
+build_gem5()
+{
+    # Include our extension modules, if they're also about to be installed.
+    local extras=
+    [[ -d ../m5-mcpat-parser/m5mbridge ]] && extras+=../m5-mcpat-parser/m5mbridge:
+    [[ -d ../hotspot ]] && extras+=../hotspot:
+
+    # Remove trailing colon
+    extras=${extras:0:((${#extras}-1))}
+
+    scons "-j$build_jobs" EXTRAS="$extras" build/ALPHA_FS/gem5.opt
+}
+
+# Collect the changes to the PATH variable and show them to the user.
+display_new_path()
+{
+    paths=()
+    for proj in "${VIPG_PROJECTS[@]}"; do
+        proj_path="${PROJ_PATH[$proj]}"
+        if [[ -n "$proj_path" ]]; then
+            paths+=("$(readlink -f "${prefix}/${proj_path}")")
+        fi
+    done
+    echo -e "\nTo make the VIPG projects visible in your PATH, add the following
+statement to your shell's initialization file, e.g., ~/.bashrc for the Bash
+shell.\n"
+
+    # Join the elements in the paths array by a colon. This is accomplished by
+    # using the [*] expansion, which uses the first character in IFS to
+    # concatenate the array elements.
+    local oldIFS=$IFS
+    IFS=:
+    echo "PATH=\$PATH:${paths[*]}"
+    IFS=$oldIFS
+}
+
+gem5_path()
+{
+    echo "$(readlink -f "${prefix}/gem5")"
+}
+
+# Parse the command line
+while getopts "h j: g: p: P:" arg; do
+    case "$arg" in
+        h) die "$usage" ;;
+        j) build_jobs=$OPTARG ;;
+        g) git_server=$OPTARG ;;
+        p) parse_project_list "$OPTARG" ;;
+        P) parse_proj_ignore_list "$OPTARG" ;;
+    esac
+done
+
+# Check if the user supplied the PREFIX argument. If it was omitted, it
+# defaults to the current working directory.
+if ((OPTIND == $#)); then
+    prefix=${@:((-1))}
+fi
+
+# Make sure that the destination directory does exist.
+[[ -d "$prefix" ]] || die "The destination directory '$prefix' does not exist!"
+
+display_summary
+
+# Install/Update all the projects.
+for proj in "${VIPG_PROJECTS[@]}"; do
+    echo "Installing $proj"
+    logfile_path="$prefix/$proj"
+    logfile="$logfile_path/install.log"
+    mkdir -p "$logfile_path"
+    { setup_project "$proj" && pull_project "$proj" && build_project "$proj" ; } 5>"$logfile" || \
+    error "Installing '$proj' failed. See $logfile for details."
+done
+
+display_new_path
