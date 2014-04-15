@@ -1,0 +1,15 @@
+This document describes the process of compiling a vipg-simulator suite
+release.
+
+1. Ubuntu packages you need to have before installing the vipg project:
+sudo apt-get install git-core swig g++ libc6-dev-i386 g++-multilib scons python-dev
+
+2. Installing
+./install
+
+3. if mcpat does not build correctly then go into mcpat folder and type:
+autoreconf --force --install
+./configure
+make
+
+then try again

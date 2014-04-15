@@ -1,2 +1,8 @@
 build.log
-
+gem5
+gem5-config
+gem5-extra
+hotspot
+m5-mcpat-parser
+mcpat
+utils
