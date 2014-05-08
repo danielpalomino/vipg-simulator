@@ -27,7 +27,7 @@ release=master
 releases=(v1.0 master next devel)
 
 # The Git server/location where the VIPG projects are hosted.
-git_server='https://git@github.com/danielpalomino'
+git_server='ssh://git@github.com/danielpalomino'
 
 # The number of parallel build jobs to use, e.g., make -j N or scons -j N.
 build_jobs=1
