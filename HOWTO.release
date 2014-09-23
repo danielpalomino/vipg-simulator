@@ -2,7 +2,7 @@ This document describes the process of compiling a vipg-simulator suite
 release.
 
 1. Ubuntu packages you need to have before installing the vipg project:
-sudo apt-get install git-core swig g++ libc6-dev-i386 g++-multilib scons python-dev autoconf libtool m4
+sudo apt-get install git-core swig g++ libc6-dev-i386 g++-multilib scons python-dev autoconf libtool m4 zlib1g-dev
 
 2. Installing
 ./install
