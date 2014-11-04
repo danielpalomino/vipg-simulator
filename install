@@ -17,7 +17,7 @@
 # Projects are built in the order they're listed in this array. The Gem5
 # project must be built last, because it needs some of the other projects
 # (hotspot and mcpat).
-__VIPG_PROJECTS=(hotspot m5-mcpat-parser mcpat utils gem5-extra gem5-config gem5)
+__VIPG_PROJECTS=(hotspot m5-mcpat-parser mcpat utils gem5-extra gem5-config gem5 mcpat-hotspot-parser)
 VIPG_PROJECTS=("${__VIPG_PROJECTS[@]}")
 
 # The desired release
@@ -71,6 +71,7 @@ PROJ_BUILDER["hotspot"]='{ make -f Makefile.testbed ; }'
 PROJ_BUILDER["m5-mcpat-parser"]=:
 PROJ_BUILDER["mcpat"]=build_autotools_project
 PROJ_BUILDER["utils"]=:
+PROJ_BUILDER["mcpat-hotspot-parser"]=:
 
 # Maps each project by name to a path relative to $prefix, that should be
 # expanded and added to the PATH environment variable.
@@ -82,6 +83,7 @@ PROJ_PATH["hotspot"]=hotspot
 PROJ_PATH["m5-mcpat-parser"]=m5-mcpat-parser
 PROJ_PATH["mcpat"]=mcpat
 PROJ_PATH["utils"]=
+PROJ_PATH["mcpat-hotspot-parser"]=
 
 # Print all given arguments to stderr, then exit with status 1.
 die()
