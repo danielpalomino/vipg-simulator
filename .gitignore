@@ -4,5 +4,7 @@ gem5-config
 gem5-extra
 hotspot
 m5-mcpat-parser
+mcpat-old
 mcpat
+mcpat-hotspot-parser
 utils
